@@ -6,7 +6,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	"golang.org/x/mod/modfile"
 	"golang.org/x/tools/go/analysis"
@@ -30,9 +32,6 @@ var Analyzer = &analysis.Analyzer{
 	Name: "nxgoenforcemoduleboundaries",
 	Doc:  "Checks that nx package boundaries are followed.",
 	Run:  run,
-	FactTypes: []analysis.Fact{
-		projectFileCache,
-	},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -40,7 +39,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
-	pkgProj := projectFileCache.getProjectFileForPath(pass.Pkg.Name())
+	var pkgProj *projectFile
 
 	inspect := func(node ast.Node) bool {
 		importSpec, ok := node.(*ast.ImportSpec)
@@ -52,10 +51,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !strings.HasPrefix(p, importPrefix+"/") {
 			return true
 		}
+		p = "./" + strings.TrimPrefix(p, importPrefix+"/")
 
 		importProj := projectFileCache.getProjectFileForPath(p)
 
 		// If in the same project, no error
+		fmt.Println(pkgProj.path)
+		fmt.Println(importProj.path)
 		if importProj == pkgProj {
 			return true
 		}
@@ -66,7 +68,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, f := range pass.Files {
-		ast.Inspect(f, inspect)
+		pkgProj = projectFileCache.getProjectFileForPath(pass.Fset.File(f.Pos()).Name())
+		if pkgProj != nil {
+			ast.Inspect(f, inspect)
+		}
 	}
 	return nil, nil
 }
@@ -77,14 +82,15 @@ type projectFile struct {
 
 type projectFileCacheFact struct {
 	cache map[string]*projectFile
+	m     sync.Mutex
 }
 
-func (projectFileCacheFact) AFact() {}
+func (*projectFileCacheFact) AFact() {}
 
 func (pfc *projectFileCacheFact) getProjectFileForPath(p string) *projectFile {
-	fmt.Println(p)
-
+	pfc.m.Lock()
 	res, ok := pfc.cache[p]
+	pfc.m.Unlock()
 	if ok {
 		return res
 	}
@@ -94,11 +100,15 @@ func (pfc *projectFileCacheFact) getProjectFileForPath(p string) *projectFile {
 		res = &projectFile{
 			path: p,
 		}
+	} else if p == "." || p == "/" {
+		return nil
 	} else {
-		// TODO: If it isn't here, check if it's the top level of the module
-		res = pfc.getProjectFileForPath(path.Join(p, ".."))
+		res = pfc.getProjectFileForPath(filepath.Dir(p))
 	}
 
+	pfc.m.Lock()
 	pfc.cache[p] = res
+	pfc.m.Unlock()
+
 	return res
 }
