@@ -1,0 +1,20 @@
+{
+  "allow": [],
+  "depConstraints": [
+    {
+      "sourceTag": "test-a",
+      "onlyDependOnLibsWithTags": [
+        "test-c"
+      ]
+    },
+    {
+      "sourceTag": "test-b",
+      "onlyDependOnLibsWithTags": [
+        "test-c"
+      ],
+      "notDependOnLibsWithTags": [
+        "no-b"
+      ]
+    }
+  ]
+}
