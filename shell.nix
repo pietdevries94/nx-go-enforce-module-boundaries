@@ -4,6 +4,6 @@ with pkgs;
 
 mkShell {
   buildInputs = [
-    go
+    go_1_19
   ];
 }
