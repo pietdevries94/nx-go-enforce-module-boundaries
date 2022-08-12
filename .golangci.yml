@@ -1,10 +1,10 @@
 linters-settings:
   custom:
     nxgoenforcemoduleboundaries:
-      path: /home/piet/Projects/nx-go-enforce-module-boundaries/nxgoenforcemoduleboundaries.so
+      path: ./nxgoenforcemoduleboundaries.so
       description: The description of the linter
       original-url: github.com/golangci/example-linter
 
 linters:
   enable:
-   - nxgoenforcemoduleboundaries
+    - nxgoenforcemoduleboundaries

@@ -8,9 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 
-	"golang.org/x/mod/modfile"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -22,49 +20,23 @@ var Analyzer = &analysis.Analyzer{
 	Run:  run,
 }
 
-var importPrefix = ""
-var allowed []string
-var mappedDepConstraint map[string]DepConstraint = make(map[string]DepConstraint)
-var projectFileCache = &projectFileCacheFact{
-	cache: map[string]*projectFile{},
-}
-
-func init() {
-	// TODO: better find method with moving up. Probably needs to move to the runner in case of multiple mods in the workspace
-	mod, err := os.ReadFile("./go.mod")
-	if err != nil {
-		return
-	}
-	importPrefix = modfile.ModulePath(mod)
-
-	// TODO: better find method with moving up
-	boundariesFile, err := os.Open("./boundaries.json")
-	if err != nil {
-		return
-	}
-	defer boundariesFile.Close()
-
-	b := Boundaries{}
-	err = json.NewDecoder(boundariesFile).Decode(&b)
-	if err != nil {
-		return
-	}
-	allowed = b.Allow
-
-	for _, dc := range b.DepConstraints {
-		mappedDepConstraint[dc.SourceTag] = dc
-	}
-}
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	// if everything is allowed, linting makes no sense
 	if importPrefix == "" || includes(allowed, "*") {
 		return nil, nil
 	}
 
-	var pkgProj *projectFile
+	for _, f := range pass.Files {
+		pkgProj := getProjectFileForPath(pass.Fset.File(f.Pos()).Name())
+		if pkgProj != nil {
+			ast.Inspect(f, inspect(pass, pkgProj))
+		}
+	}
+	return nil, nil
+}
 
-	inspect := func(node ast.Node) bool {
+func inspect(pass *analysis.Pass, pkgProj *projectFile) func(node ast.Node) bool {
+	return func(node ast.Node) bool {
 		importSpec, ok := node.(*ast.ImportSpec)
 		if !ok {
 			return true
@@ -76,7 +48,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		p = "./" + strings.TrimPrefix(p, importPrefix+"/")
 
-		importProj := projectFileCache.getProjectFileForPath(p)
+		importProj := getProjectFileForPath(p)
 
 		// If in the same project, no error
 		if importProj == pkgProj {
@@ -103,38 +75,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		return true
 	}
-
-	for _, f := range pass.Files {
-		pkgProj = projectFileCache.getProjectFileForPath(pass.Fset.File(f.Pos()).Name())
-		if pkgProj != nil {
-			ast.Inspect(f, inspect)
-		}
-	}
-	return nil, nil
 }
 
-type projectFile struct {
-	path string
-	tags []string
-}
-
-type projectFileCacheFact struct {
-	cache map[string]*projectFile
-	m     sync.Mutex
-}
-
-func (*projectFileCacheFact) AFact() {}
-
-func (pfc *projectFileCacheFact) getProjectFileForPath(p string) *projectFile {
+func getProjectFileForPath(p string) *projectFile {
 	p, err := filepath.Abs(p)
 	if err != nil {
 		// TODO error message
 		return nil
 	}
 
-	pfc.m.Lock()
-	res, ok := pfc.cache[p]
-	pfc.m.Unlock()
+	projectFileCache.m.Lock()
+	res, ok := projectFileCache.cache[p]
+	projectFileCache.m.Unlock()
 	if ok {
 		return res
 	}
@@ -148,43 +100,13 @@ func (pfc *projectFileCacheFact) getProjectFileForPath(p string) *projectFile {
 	} else if p == "." || p == "/" {
 		return nil
 	} else {
-		res = pfc.getProjectFileForPath(filepath.Dir(p))
+		res = getProjectFileForPath(filepath.Dir(p))
 	}
 
-	pfc.m.Lock()
-	pfc.cache[p] = res
-	pfc.m.Unlock()
+	projectFileCache.m.Lock()
+	projectFileCache.cache[p] = res
+	projectFileCache.m.Unlock()
 
-	return res
-}
-
-type Boundaries struct {
-	Allow          []string        `json:"allow"`
-	DepConstraints []DepConstraint `json:"depConstraints"`
-}
-
-type DepConstraint struct {
-	SourceTag                string   `json:"sourceTag"`
-	OnlyDependOnLibsWithTags []string `json:"onlyDependOnLibsWithTags"`
-	NotDependOnLibsWithTags  []string `json:"notDependOnLibsWithTags"`
-}
-
-func includes[T comparable](slice []T, item T) bool {
-	for _, si := range slice {
-		if item == si {
-			return true
-		}
-	}
-	return false
-}
-
-func getOverlapping[T comparable](a []T, b []T) []T {
-	res := []T{}
-	for _, ai := range a {
-		if includes(b, ai) {
-			res = append(res, ai)
-		}
-	}
 	return res
 }
 
