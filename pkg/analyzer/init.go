@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"encoding/json"
-	"os"
 
 	"golang.org/x/mod/modfile"
 )
@@ -15,15 +14,13 @@ var projectFileCache = &projectFileCacheFact{
 }
 
 func init() {
-	// TODO: better find method with moving up. Probably needs to move to the runner in case of multiple mods in the workspace
-	mod, err := os.ReadFile("./go.mod")
+	mod, err := findAndReadFile("./go.mod")
 	if err != nil {
 		return
 	}
 	importPrefix = modfile.ModulePath(mod)
 
-	// TODO: better find method with moving up
-	boundariesFile, err := os.Open("./boundaries.json")
+	boundariesFile, err := findAndOpenFile("./boundaries.json")
 	if err != nil {
 		return
 	}

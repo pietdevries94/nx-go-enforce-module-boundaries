@@ -21,12 +21,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, f := range pass.Files {
-		pkgProj := getProjectFileForPath(pass.Fset.File(f.Pos()).Name())
-		if pkgProj != nil {
-			ast.Inspect(f, func(node ast.Node) bool {
-				return inspect(pass, pkgProj, node)
-			})
+		pkgProj, ok := getProjectFileForPath(pass.Fset.File(f.Pos()).Name())
+		if !ok {
+			return nil, nil
 		}
+		ast.Inspect(f, func(node ast.Node) bool {
+			return inspect(pass, pkgProj, node)
+		})
+
 	}
 	return nil, nil
 }
@@ -57,8 +59,8 @@ func getImportProjectOrDone(reportf func(string, ...any), pkgProj *projectFile, 
 	}
 	p = "./" + strings.TrimPrefix(p, importPrefix+"/")
 
-	importProj := getProjectFileForPath(p)
-	return importProj, false
+	importProj, ok := getProjectFileForPath(p)
+	return importProj, !ok
 }
 
 func notSameProjectOrDone(reportf func(string, ...any), pkgProj *projectFile, importProj *projectFile) bool {

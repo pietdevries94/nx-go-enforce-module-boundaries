@@ -1,6 +1,10 @@
 package analyzer
 
-import "bytes"
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+)
 
 func includes[T comparable](slice []T, item T) bool {
 	for _, si := range slice {
@@ -35,4 +39,35 @@ func stringifyTags(tags []string) string {
 
 	b.WriteString(`"`)
 	return b.String()
+}
+
+func findFile(p string) (string, bool) {
+	p, err := filepath.Abs(p)
+	if err != nil {
+		panic(err)
+	}
+	_, err = os.Stat(p)
+	if err == nil {
+		return p, true
+	}
+	dir, file := filepath.Split(p)
+	if dir == string(filepath.Separator) {
+		return "", false
+	}
+	return findFile(filepath.Join(dir, "..", file))
+}
+
+func findAndReadFile(p string) ([]byte, error) {
+	p, ok := findFile(p)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return os.ReadFile(p)
+}
+func findAndOpenFile(p string) (*os.File, error) {
+	p, ok := findFile(p)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return os.Open(p)
 }
