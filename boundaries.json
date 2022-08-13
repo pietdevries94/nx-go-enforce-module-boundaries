@@ -1,5 +1,7 @@
 {
-  "allow": [],
+  "allow": [
+    "github.com/pietdevries94/nx-go-enforce-module-boundaries/*"
+  ],
   "depConstraints": [
     {
       "sourceTag": "test-a",

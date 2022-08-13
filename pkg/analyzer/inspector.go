@@ -44,3 +44,12 @@ func runInspector[T, U any](i inspector[T], f func(reportf func(string, ...any),
 		value:   res,
 	}
 }
+
+func runInspectorNoRes[T any](i inspector[T], f func(reportf func(string, ...any), pkgProj *projectFile, v T) bool) {
+	if *i.done {
+		return
+	}
+
+	done := f(i.reportf, i.pkgProj, i.value)
+	*i.done = done
+}
