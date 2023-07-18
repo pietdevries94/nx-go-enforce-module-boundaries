@@ -17,7 +17,7 @@ func getProjectFileForPath(p string) (*projectFile, bool) {
 	res, ok := projectFileCache.cache[p]
 	projectFileCache.m.Unlock()
 	if ok {
-		return res, false
+		return res, true
 	}
 
 	// If project file in current folder, get it and cache the current path
