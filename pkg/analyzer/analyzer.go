@@ -64,7 +64,13 @@ func getImportProjectOrDone(reportf func(string, ...any), pkgProj *projectFile, 
 }
 
 func notSameProjectOrDone(reportf func(string, ...any), pkgProj *projectFile, importProj *projectFile) bool {
-	return pkgProj == importProj
+	if pkgProj == nil && importProj == nil {
+		return true
+	}
+	if pkgProj == nil || importProj == nil {
+		return false
+	}
+	return pkgProj.path == importProj.path
 }
 
 func notGloballyAllowedOrDone(reportf func(string, ...any), pkgProj *projectFile, importSpec *ast.ImportSpec) bool {
