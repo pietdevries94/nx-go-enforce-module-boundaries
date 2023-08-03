@@ -17,6 +17,9 @@ func getProjectFileForPath(p string) (*projectFile, bool) {
 	res, ok := projectFileCache.cache[p]
 	projectFileCache.m.Unlock()
 	if ok {
+		if res == nil {
+			return nil, false
+		}
 		return res, true
 	}
 
